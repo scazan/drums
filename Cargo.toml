@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fon = "0.6.0"
-twang = "0.8.0"
+anyhow = "1.0.61"
+cpal = "0.13.5"
+fundsp = "0.8.0"
