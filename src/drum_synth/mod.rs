@@ -2,7 +2,7 @@
 
 // use std::error::Error;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use fundsp::hacker::*;
+use fundsp::{hacker::*, prelude::noise};
 use rand::Rng;
 
 trait DrumSample {
@@ -38,13 +38,15 @@ impl DrumSample for SnareSample {
     fn generate() -> Box<dyn AudioUnit64> {
         let mut rng = rand::thread_rng();
 
-        let freq = rng.gen_range(60..=300) as f64;
         let overdrive = rng.gen_range(1..=7) as f64;
 
-        let drum_sample =
-            envelope(move |t| freq * exp(-t * 20.0)) >> sine() * overdrive >> shape(Shape::Tanh(2.0)) >> pan(0.0);
+        let noise = white();
+        let env = envelope(move |t| 1.0 * exp(-t * 40.0));
 
-        Box::new(drum_sample)
+        Box::new(
+            noise * overdrive * env >> shape(Shape::Tanh(2.0)) >> pan(0.0)
+        )
+
     }
 }
 
@@ -63,11 +65,12 @@ pub fn generate() {
         .expect("failed to find a default output device");
 
     let config = device.default_output_config().unwrap();
+    let instrument_type = InstrumentType::Snare;
 
     match config.sample_format() {
-        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into(), InstrumentType::Snare).unwrap(),
-        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into(), InstrumentType::Snare).unwrap(),
-        cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), InstrumentType::Snare).unwrap(),
+        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into(), instrument_type).unwrap(),
+        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into(), instrument_type).unwrap(),
+        cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), instrument_type).unwrap(),
     }
 }
 
