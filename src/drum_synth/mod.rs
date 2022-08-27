@@ -26,10 +26,12 @@ impl DrumSample for KickSample {
         let freq = rng.gen_range(60..=300) as f64;
         let overdrive = rng.gen_range(1..=7) as f64;
 
-        let drum_sample =
-            envelope(move |t| freq * exp(-t * 20.0)) >> sine() * overdrive >> shape(Shape::Tanh(2.0)) >> pan(0.0);
-
-        Box::new(drum_sample)
+        Box::new(
+            envelope(move |t| freq * exp(-t * 20.0))
+            >> sine() * overdrive
+            >> shape(Shape::Tanh(2.0))
+            >> pan(0.0)
+        )
     }
 }
 
@@ -38,15 +40,19 @@ impl DrumSample for SnareSample {
     fn generate() -> Box<dyn AudioUnit64> {
         let mut rng = rand::thread_rng();
 
-        let overdrive = rng.gen_range(1..=7) as f64;
+        let resonance = rng.gen_range(40..=600) as f64;
+        let freq = rng.gen_range(400..=1000) as f64;
+        let env_length = rng.gen_range(40..=60) as f64;
 
         let noise = white();
-        let env = envelope(move |t| 1.0 * exp(-t * 40.0));
+        let env = envelope(move |t| 1.0 * exp(-t * env_length));
 
         Box::new(
-            noise * overdrive * env >> shape(Shape::Tanh(2.0)) >> pan(0.0)
+            noise
+            >> resonator_hz(freq, resonance) * env
+            >> shape(Shape::Tanh(2.0))
+            >> pan(0.0)
         )
-
     }
 }
 
