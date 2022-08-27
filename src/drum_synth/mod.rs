@@ -18,8 +18,7 @@ enum InstrumentType {
     Tambourine,
 }
 
-struct KickSample {}
-
+struct KickSample;
 impl DrumSample for KickSample {
     fn generate() -> Box<dyn AudioUnit64> {
         let mut rng = rand::thread_rng();
@@ -28,12 +27,32 @@ impl DrumSample for KickSample {
         let overdrive = rng.gen_range(1..=7) as f64;
 
         let drum_sample =
-            envelope(move |t| freq * exp(-t * 20.0)) >> sine() * overdrive >> shape(Shape::Tanh(2.0)) >> pan(0.0)
-            >> (declick() | declick()) >> (dcblock() | dcblock())
-            >> limiter_stereo((1.0, 5.0));
+            envelope(move |t| freq * exp(-t * 20.0)) >> sine() * overdrive >> shape(Shape::Tanh(2.0)) >> pan(0.0);
 
         Box::new(drum_sample)
     }
+}
+
+struct SnareSample;
+impl DrumSample for SnareSample {
+    fn generate() -> Box<dyn AudioUnit64> {
+        let mut rng = rand::thread_rng();
+
+        let freq = rng.gen_range(60..=300) as f64;
+        let overdrive = rng.gen_range(1..=7) as f64;
+
+        let drum_sample =
+            envelope(move |t| freq * exp(-t * 20.0)) >> sine() * overdrive >> shape(Shape::Tanh(2.0)) >> pan(0.0);
+
+        Box::new(drum_sample)
+    }
+}
+
+fn get_end_of_chain() -> Box<dyn AudioUnit64> {
+    let end_of_chain = (declick() | declick()) >> (dcblock() | dcblock())
+        >> limiter_stereo((1.0, 5.0));
+
+    Box::new(end_of_chain)
 }
 
 pub fn generate() {
@@ -46,9 +65,9 @@ pub fn generate() {
     let config = device.default_output_config().unwrap();
 
     match config.sample_format() {
-        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into(), InstrumentType::Kick).unwrap(),
-        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into(), InstrumentType::Kick).unwrap(),
-        cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), InstrumentType::Kick).unwrap(),
+        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into(), InstrumentType::Snare).unwrap(),
+        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into(), InstrumentType::Snare).unwrap(),
+        cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), InstrumentType::Snare).unwrap(),
     }
 }
 
@@ -62,14 +81,22 @@ where
     // figure out which kind of sample we are generating
     let drum_sample = match instrument {
         InstrumentType::Kick => KickSample::generate(),
+        InstrumentType::Snare => SnareSample::generate(),
         _ => KickSample::generate(),
     };
 
-    let mut c = drum_sample;
+    let c = drum_sample;
 
-    c.reset(Some(sample_rate));
+    let mut net = Net64::new(0, 2);
+    let sample = net.add(c);
+    let limiter = net.add(get_end_of_chain());
 
-    let mut next_value = move || c.get_stereo();
+    net.pipe(sample, limiter);
+    net.pipe_output(limiter);
+
+    net.reset(Some(sample_rate));
+
+    let mut next_value = move || net.get_stereo();
 
     let err_fn = |err| eprintln!("an error occurred on stream: {}", err);
 
